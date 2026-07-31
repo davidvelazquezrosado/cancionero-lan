@@ -391,6 +391,167 @@
     from { opacity: 1; }
     to   { opacity: 0; }
   }
+
+  /* ── SHOW TIME MODE ── */
+  #tarima-view {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: #000;
+    z-index: 8000;
+    overflow-y: auto;
+    padding: 30px 24px 120px;
+  }
+  #tarima-view.active { display: block; }
+
+  .tarima-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #222;
+  }
+  .tarima-title {
+    font-size: 28px;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1.1;
+  }
+  .tarima-key {
+    font-family: 'Courier New', monospace;
+    font-size: 22px;
+    font-weight: 800;
+    color: #fbbf24;
+    background: rgba(251,191,36,0.1);
+    border: 2px solid rgba(251,191,36,0.3);
+    border-radius: 10px;
+    padding: 6px 14px;
+  }
+
+  .tarima-transpose {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 32px;
+    padding: 14px 16px;
+    background: #111;
+    border-radius: 14px;
+  }
+  .tarima-transpose-label {
+    font-size: 12px;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    flex: 1;
+  }
+  .btn-tarima-transpose {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    border: 2px solid #333;
+    background: #1a1a1a;
+    color: #fbbf24;
+    font-size: 26px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+  .btn-tarima-transpose:active { background: #fbbf24; color: #000; transform: scale(0.92); }
+  .tarima-key-display {
+    font-family: 'Courier New', monospace;
+    font-size: 26px;
+    font-weight: 800;
+    color: #fbbf24;
+    min-width: 56px;
+    text-align: center;
+  }
+  .btn-tarima-reset {
+    font-size: 11px;
+    color: #444;
+    background: none;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+  .btn-tarima-reset:active { color: #fff; }
+
+  .tarima-section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #a78bfa;
+    margin-bottom: 16px;
+    padding: 6px 12px;
+    background: rgba(167,139,250,0.08);
+    border-left: 3px solid #a78bfa;
+    border-radius: 0 8px 8px 0;
+    display: inline-block;
+  }
+  .tarima-block { margin-bottom: 36px; }
+  .tarima-line { margin-bottom: 12px; }
+  .tarima-chords {
+    font-family: 'Courier New', monospace;
+    font-size: 22px;
+    font-weight: 700;
+    color: #fbbf24;
+    white-space: pre;
+    min-height: 28px;
+    line-height: 1.3;
+  }
+  .tarima-lyrics {
+    font-size: 28px;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
+
+  /* Botón salir tarima */
+  .btn-exit-tarima {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1a1a1a;
+    border: 2px solid #333;
+    color: #666;
+    border-radius: 50px;
+    padding: 14px 32px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    z-index: 8001;
+    letter-spacing: 0.06em;
+    transition: all 0.2s;
+  }
+  .btn-exit-tarima:active { background: #333; color: #fff; }
+
+  /* Botón entrar tarima en song view */
+  .btn-tarima-enter {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: calc(100% - 32px);
+    margin: 0 16px 24px;
+    padding: 16px;
+    background: linear-gradient(135deg, #7c3aed, #4f46e5);
+    border: none;
+    border-radius: 14px;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: opacity 0.2s;
+    box-shadow: 0 4px 20px rgba(124,58,237,0.4);
+  }
+  .btn-tarima-enter:active { opacity: 0.85; transform: scale(0.98); }
 </style>
 </head>
 <body>
@@ -435,6 +596,7 @@
     <span class="semitone-count" id="semitone-display"></span>
     <button class="btn-reset" onclick="resetTranspose()">Reset</button>
   </div>
+  <button class="btn-tarima-enter" onclick="enterTarima()">🎤 Show Time Mode</button>
   <div class="lyrics-container" id="lyrics-container"></div>
 </div>
 
@@ -1240,8 +1402,96 @@ setTimeout(() => {
   if (splash) splash.remove();
 }, 5200);
 
+
+// ── SHOW TIME MODE ──────────────────────────────────────────────────────────────
+let tarimaOffset = 0;
+let wakeLock = null;
+
+function renderTarima(song, offset) {
+  const container = document.getElementById('tarima-lyrics');
+  container.innerHTML = '';
+  song.sections.forEach(section => {
+    const block = document.createElement('div');
+    block.className = 'tarima-block';
+    const label = document.createElement('div');
+    label.className = 'tarima-section-label';
+    label.textContent = section.name;
+    block.appendChild(label);
+    section.lines.forEach(line => {
+      const lineDiv = document.createElement('div');
+      lineDiv.className = 'tarima-line';
+      const chordsDiv = document.createElement('div');
+      chordsDiv.className = 'tarima-chords';
+      chordsDiv.textContent = transposeChordLine(line.chords, offset);
+      const lyricsDiv = document.createElement('div');
+      lyricsDiv.className = 'tarima-lyrics';
+      lyricsDiv.textContent = line.lyrics;
+      lineDiv.appendChild(chordsDiv);
+      lineDiv.appendChild(lyricsDiv);
+      block.appendChild(lineDiv);
+    });
+    container.appendChild(block);
+  });
+}
+
+function updateTarimaKey() {
+  const key = getTransposedKey(currentSong.key, tarimaOffset);
+  document.getElementById('tarima-key-display').textContent = key;
+  document.getElementById('tarima-key-badge').textContent = key;
+}
+
+function tarimaTrans(steps) {
+  tarimaOffset = (tarimaOffset + steps + 12) % 12;
+  if (tarimaOffset > 6) tarimaOffset -= 12;
+  renderTarima(currentSong, tarimaOffset);
+  updateTarimaKey();
+}
+
+function tarimaReset() {
+  tarimaOffset = semitoneOffset;
+  renderTarima(currentSong, tarimaOffset);
+  updateTarimaKey();
+}
+
+async function enterTarima() {
+  tarimaOffset = semitoneOffset;
+  document.getElementById('tarima-title').textContent = currentSong.title;
+  updateTarimaKey();
+  renderTarima(currentSong, tarimaOffset);
+  document.getElementById('tarima-view').classList.add('active');
+  document.getElementById('tarima-view').scrollTop = 0;
+  // Mantener pantalla encendida
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+    }
+  } catch(e) {}
+}
+
+function exitTarima() {
+  document.getElementById('tarima-view').classList.remove('active');
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+}
+
 SONGS.sort((a, b) => a.title.localeCompare(b.title, 'es'));
 buildSongList(SONGS);
 </script>
+
+<!-- MODO TARIMA -->
+<div id="tarima-view">
+  <div class="tarima-header">
+    <div class="tarima-title" id="tarima-title"></div>
+    <div class="tarima-key" id="tarima-key-badge"></div>
+  </div>
+  <div class="tarima-transpose">
+    <span class="tarima-transpose-label">Tonalidad</span>
+    <button class="btn-tarima-transpose" onclick="tarimaTrans(-1)">−</button>
+    <span class="tarima-key-display" id="tarima-key-display">—</span>
+    <button class="btn-tarima-transpose" onclick="tarimaTrans(1)">+</button>
+    <button class="btn-tarima-reset" onclick="tarimaReset()">Reset</button>
+  </div>
+  <div id="tarima-lyrics"></div>
+  <button class="btn-exit-tarima" onclick="exitTarima()">✕ Salir del Show Time Mode✕ Salir del Show Time Mode</button>
+</div>
 </body>
 </html>
